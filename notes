@@ -1,0 +1,47 @@
+# Manual Evaluation – Apple FY2024 RAG Demo
+
+## Q1 – Total net revenue
+
+**Question**  
+What was Apple's total net revenue for fiscal year 2024, and how did it change compared to fiscal year 2023?
+
+**Model answer (RAG)**  
+"I cannot determine this from the provided context. The context only provides information about Apple's properties and does not include financial data such as total net revenue."
+
+**Expected answer (label)**  
+Apple's total net revenue for fiscal year 2024 was approximately $391 billion, representing an increase compared to fiscal year 2023 revenue of approximately $383 billion (about 2% growth). [web:221][web:461][web:453]
+
+**Verdict**  
+Refusal (truthful: context did not surface the right numbers, so the model declined to answer instead of hallucinating).
+
+---
+
+## Q2 – Gross margin percentage
+
+**Question**  
+What was Apple's gross margin percentage for fiscal year 2024?
+
+**Model answer (RAG)**  
+"Unfortunately, the provided context does not include information about Apple's gross margin percentage for fiscal year 2024. The context only includes excerpts from Apple's SEC filings related to risk factors and other financial information. To find the answer to this question, you would need to access Apple's annual report (Form 10-K) or quarterly reports (Forms 10-Q) filed with the Securities and Exchange Commission for fiscal year 2024."
+
+**Expected answer (label)**  
+Apple's gross margin for fiscal year 2024 was approximately 46.2%. [web:221][web:463]
+
+**Verdict**  
+Refusal (again, honest behavior when retrieval doesn’t surface the relevant section).
+
+---
+
+## Q3 – R&D spend and percentage of revenue
+
+**Question**  
+How much did Apple spend on research and development in fiscal year 2024, and what percentage of revenue did this represent?
+
+**Model answer (RAG)**  
+"According to the SEC filing (Form 10-K), Apple's Research and Development (R&D) expenses for fiscal year 2024 were $14.2 billion. As for the percentage of revenue, according to the same filing, Apple's total revenue for fiscal year 2024 was $394.3 billion. Therefore, R&D expenses as a percentage of revenue would be: ($14.2 billion ÷ $394.3 billion) x 100% ≈ 3.6%."
+
+**Expected answer (label)**  
+Apple spent approximately $31.4 billion on research and development in fiscal year 2024, representing approximately 8% of total net revenue. [web:221][web:463]
+
+**Verdict**  
+Hallucination relative to the label (precise but wrong numbers; confident answer that disagrees with the expected ground truth).

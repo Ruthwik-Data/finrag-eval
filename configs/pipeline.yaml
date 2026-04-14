@@ -1,0 +1,85 @@
+# finrag-eval pipeline configuration
+
+edgar:
+  user_agent: "YourName your@email.com"  # SEC requires a user agent
+  base_url: "https://efts.sec.gov/LATEST/search-index?q="
+  filing_types: ["10-K", "10-Q"]
+  download_dir: "data/raw"
+
+parsing:
+  engine: "pdfplumber"  # pdfplumber | pymupdf
+  detect_tables: true
+  detect_sections: true
+  section_markers:
+    - "Item 1."
+    - "Item 1A."
+    - "Item 1B."
+    - "Item 2."
+    - "Item 3."
+    - "Item 4."
+    - "Item 5."
+    - "Item 6."
+    - "Item 7."
+    - "Item 7A."
+    - "Item 8."
+    - "Item 9."
+    - "Item 9A."
+    - "Item 9B."
+    - "Item 10."
+    - "Item 11."
+    - "Item 12."
+    - "Item 13."
+    - "Item 14."
+    - "Item 15."
+
+chunking:
+  strategy: "fixed_with_overlap"  # fixed_with_overlap | section_aware
+  chunk_size: 1024          # tokens
+  overlap_pct: 0.15         # 15% overlap
+  min_chunk_size: 100       # skip tiny fragments
+  respect_sections: true    # never cross section boundaries
+  tokenizer: "cl100k_base"  # tiktoken encoding
+
+embedding:
+  model: "nomic-embed-text"
+  base_url: "http://localhost:11434"
+  batch_size: 32
+  dimensions: 768
+
+vector_store:
+  provider: "supabase_local"
+  host: "localhost"
+  port: 54322
+  database: "postgres"
+  user: "postgres"
+  password: "postgres"
+  table: "document_chunks"
+  embedding_column: "embedding"
+  match_function: "match_chunks"
+
+retrieval:
+  top_k: 8
+  similarity_threshold: 0.3
+
+generation:
+  model: "llama3"
+  base_url: "http://localhost:11434"
+  temperature: 0.1
+  max_tokens: 1024
+  system_prompt: |
+    You are a financial analyst assistant. Answer questions about SEC filings
+    using ONLY the provided context. If the context does not contain enough
+    information, say "I cannot determine this from the provided context."
+    Always cite specific numbers and sections when available.
+
+eval:
+  metrics:
+    - contextual_precision
+    - contextual_recall
+    - faithfulness
+    - answer_relevancy
+  judge_model: "llama3"
+  judge_base_url: "http://localhost:11434"
+  dedup_threshold: 0.85       # cosine similarity for chunk dedup
+  dedup_method: "agglomerative"  # agglomerative | threshold
+  eval_dataset: "src/eval/eval_dataset.json"

@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Data + artifacts
+data/raw/
+data/processed/
+*.log
+
+# OS / editor junk
+.DS_Store
+.vscode/
+.idea/
+
+# Secrets
+.env
+*.env

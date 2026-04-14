@@ -1,0 +1,23 @@
+# Core
+pdfplumber==0.11.4
+tiktoken==0.7.0
+pyyaml==6.0.2
+requests==2.32.3
+
+# Embeddings & LLM
+ollama==0.4.7
+
+# Vector store
+psycopg2-binary==2.9.10
+supabase==2.11.0
+
+# Evaluation
+deepeval==3.9.5
+sentence-transformers==3.4.1
+scikit-learn==1.6.1
+numpy==2.2.3
+
+# Utils
+rich==13.9.4
+click==8.1.8
+python-dotenv==1.1.1

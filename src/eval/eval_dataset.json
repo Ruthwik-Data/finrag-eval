@@ -1,0 +1,23 @@
+[
+  {
+    "question": "What was Apple's total net revenue for fiscal year 2024, and how did it change compared to fiscal year 2023?",
+    "expected_answer": "Apple's total net revenue for fiscal year 2024 was approximately $391 billion, representing an increase compared to fiscal year 2023 revenue of approximately $383 billion.",
+    "ticker": "AAPL",
+    "category": "revenue",
+    "difficulty": "easy"
+  },
+  {
+    "question": "What was Apple's gross margin percentage for fiscal year 2024?",
+    "expected_answer": "Apple's gross margin for fiscal year 2024 was approximately 46.2%, reflecting the gross profit divided by total net revenue.",
+    "ticker": "AAPL",
+    "category": "profitability",
+    "difficulty": "easy"
+  },
+  {
+    "question": "How much did Apple spend on research and development in fiscal year 2024, and what percentage of revenue did this represent?",
+    "expected_answer": "Apple spent approximately $31.4 billion on research and development in fiscal year 2024, representing approximately 8% of total net revenue.",
+    "ticker": "AAPL",
+    "category": "expenses",
+    "difficulty": "medium"
+  }
+]
