@@ -1,197 +1,82 @@
 # finrag-eval
 
-A small, local RAG pipeline for financial document analysis with a **focus on evaluation**, built around a 3‑question test on Apple’s FY 2024 SEC filings.
+A local RAG evaluation pipeline on Apple's FY 2024 10-K filing — built to understand where financial document retrieval breaks down, not just to make a demo that works.
 
-The goal: show how a “simple” finance RAG behaves on concrete questions (revenue, gross margin, R&D), and how it can both refuse to answer and still hallucinate convincing numbers.
+## Problem & Why
 
----
+Financial analysts and AI teams building RAG over SEC filings face a dangerous failure mode: the system answers confidently even when it shouldn't. Standard RAG evals don't catch the difference between "I don't know" (good) and "Revenue was $387.2B" when the actual number is $383.3B (dangerous). This project measures that gap on real data.
 
-## What This Does
+## What This Is
 
-Given a 10‑K PDF (e.g., Apple’s FY 2024 filing), the pipeline:
+An end-to-end local RAG pipeline — SEC EDGAR ingestion through answer generation — with a 3-question evaluation suite grounded against Apple's actual FY 2024 10-K figures.
+
+## Architecture
 
 ```
-SEC EDGAR (10-K PDFs)
-    → PDF parsing (pdfplumber + section detection)
-    → Chunking (section-aware, configurable overlap)
-    → Embeddings (Ollama nomic-embed-text)
-    → Vector store (Supabase pgvector, local)
-    → Retrieval (top-k over pgvector)
-    → Answer generation (Ollama llama3)
+SEC EDGAR (10-K PDF)
+    → pdfplumber (section-aware PDF parsing)
+    → Chunker (configurable overlap, section boundaries preserved)
+    → Ollama nomic-embed-text (local embeddings)
+    → Supabase pgvector / Docker (local vector store)
+    → Top-k retrieval
+    → Ollama llama3 (local LLM, $0 API cost)
+    → Evaluation layer (DeepEval metrics + manual ground-truth check)
 ```
 
-You can then:
+| Layer | Tool | Why |
+|-------|------|-----|
+| PDF parsing | pdfplumber | Handles financial table extraction reasonably well |
+| Embeddings | nomic-embed-text | Local, free, strong on financial terminology |
+| Vector store | Supabase + pgvector | SQL + vector in one; production-representative |
+| LLM | llama3 via Ollama | Fully local — no API costs, reproducible |
+| Orchestration | Plain Python | Debuggable; no hidden abstractions |
 
-- Ask ad‑hoc questions via `src.retrieval.query`.
-- Run a tiny 3‑question eval over Apple FY 2024:
-  1. Total net revenue vs 2023
-  2. Gross margin %
-  3. R&D spend and % of revenue
+## Evaluation & Results
 
-Manual evaluation of those 3 questions is documented in `notes/manual_eval.md`.
+3-question test suite grounded against Apple's FY 2024 10-K (ground truth pulled directly from filings):
 
----
+| Question | Ground Truth | System Response | Verdict |
+|----------|-------------|-----------------|--------|
+| Total net revenue vs FY 2023? | $391.0B (+2% YoY) | Refused — "not found in context" | ✅ Honest refusal |
+| Gross margin %? | 46.2% | Refused — "not found in context" | ✅ Honest refusal |
+| R&D spend + % of revenue? | $31.4B / 8.0% | Answered confidently with wrong figures | ❌ Confident hallucination |
 
-## Why This Exists
+**Key finding: 2/3 honest refusals. 1/3 confident hallucination with precise but incorrect numbers.**
 
-RAG is often demoed with “it answered my question!” screenshots, but very rarely with **clear, labeled evals**.
+The dangerous failure mode is not "I don't know" — it's "The answer is X" where X is wrong and sounds credible.
 
-This repo intentionally keeps things small and opinionated:
+## What This Led To
 
-- One company (Apple), one filing (10‑K), three concrete, numeric questions.
-- A local stack (Ollama + Supabase via Docker) so you can run everything without API keys.
-- A manual eval file that shows:
-  - Two honest refusals when the numbers aren’t in retrieved context.
-  - One confident hallucination with precise but wrong figures.
+Running DeepEval's `ContextualPrecisionMetric` on this pipeline exposed a metric-level bug: overlapping chunks (10-20% overlap, standard for preserving table/section boundaries) were being penalized as independent retrieval failures — making eval scores *worse* as chunk quality improved.
 
-The idea is to make evaluation behavior visible and tangible, not abstract.
+This became GitHub Issue [#2594](https://github.com/confident-ai/deepeval/issues/2594) on the DeepEval repo. The Confident AI team is shipping the fix (`group_by` parameter) in the next release.
 
----
+**The eval found a bug in the eval framework. That's the point.**
 
-## Stack
-
-| Layer            | Tool                                      | Why |
-|------------------|-------------------------------------------|-----|
-| Document source  | SEC EDGAR (10‑K PDFs)                     | Real, messy financial reports. |
-| PDF parsing      | `pdfplumber`                              | Reasonable table + text extraction for filings. |
-| Embeddings       | Ollama `nomic-embed-text`                 | Local, free, solid on financial text. |
-| Vector store     | Supabase (local via Docker) + `pgvector`  | SQL + vector search in one. |
-| LLM              | Ollama `llama3` (or other local models)   | Fully local inference, $0 API cost. |
-| Orchestration    | Plain Python scripts                      | Simple, debuggable, no heavy framework. |
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- Docker & Docker Compose (for local Supabase)
-- [Ollama](https://ollama.com) installed with models pulled
-
-### 1. Setup
+## How to Use
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/finrag-eval.git
+git clone https://github.com/Ruthwik-Data/finrag-eval
 cd finrag-eval
-
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Pull Ollama models
-ollama pull nomic-embed-text
-ollama pull llama3
-```
-
-### 2. Start Local Supabase
-
-```bash
-docker compose up -d
-```
-
-### 3. Initialize Database
-
-```bash
+docker-compose up -d
 python scripts/init_db.py
+python src/ingestion/ingest.py
+python src/retrieval/query.py
+python src/eval/metrics.py
 ```
 
-### 4. Download & Ingest Apple’s 10‑K
+Results and manual verdicts in `notes/manual_eval.md`.
 
-```bash
-# Download Apple's latest 10-K from SEC EDGAR
-python -m src.ingestion.edgar_download --ticker AAPL --filing-type 10-K
+## Lessons Learned
 
-# Parse, chunk, and embed
-python -m src.ingestion.ingest --input data/raw/AAPL_10K.pdf
-```
+1. **Confident hallucination is worse than refusal.** A system that says "I don't know" is safer than one that gives a precise wrong number. Calibrating refusal behavior is a product decision, not just a technical one.
+2. **Overlap helps retrieval, hurts naive evals.** Increasing chunk overlap improved answer grounding but lowered DeepEval precision scores — because the metric penalized redundant chunks as misses. Evaluation metrics can lie about retrieval quality.
+3. **Local-first forced honesty.** Running fully locally ($0 API cost) meant I couldn't rely on GPT-4 to paper over weak retrieval. The results are less polished but more honest.
 
-### 5. Query the Pipeline
+## Known Limitations
 
-Ask any question:
-
-```bash
-python -m src.retrieval.query "What was Apple's total net revenue for fiscal year 2024, and how did it change compared to fiscal year 2023?"
-```
-
-(For the other two eval questions, see `src/eval/eval_dataset.json`.)
-
----
-
-## Tiny Evaluation Suite
-
-The repo includes a minimal eval dataset at:
-
-- `src/eval/eval_dataset.json` – three labeled Q&A pairs on Apple FY 2024:
-  1. Total net revenue and change vs 2023.
-  2. Gross margin percentage.
-  3. R&D spend and % of revenue.
-
-You can manually run each question through the pipeline:
-
-```bash
-python -m src.retrieval.query "QUESTION_HERE"
-```
-
-Then compare against the expected answers.
-
-The file `notes/manual_eval.md` captures:
-
-- The exact model answers returned by the RAG pipeline.
-- The expected ground‑truth values (from earnings reports / filings).
-- A verdict for each question (refusal vs hallucination).
-
----
-
-## Project Structure
-
-```text
-finrag-eval/
-├── configs/
-│   └── pipeline.yaml          # Pipeline parameters
-├── src/
-│   ├── ingestion/
-│   │   ├── edgar_download.py   # SEC EDGAR 10-K/10-Q downloader
-│   │   ├── pdf_parser.py       # PDF → structured sections
-│   │   ├── chunker.py          # Section-aware chunking with configurable overlap
-│   │   └── ingest.py           # End-to-end ingestion
-│   ├── retrieval/
-│   │   ├── embedder.py         # Ollama embedding wrapper
-│   │   ├── vector_store.py     # Supabase pgvector operations
-│   │   └── query.py            # Retrieve + generate answer
-│   ├── eval/
-│   │   ├── run_eval.py         # (Optional) automated eval hooks
-│   │   ├── eval_dataset.json   # Ground truth Q&A pairs
-│   │   └── metrics.py          # Placeholder for custom metrics
-│   └── utils/
-│       ├── ollama_client.py    # Ollama client
-│       └── db.py               # Supabase connection helper
-├── notes/
-│   └── manual_eval.md          # Manual evaluation of the 3 Apple FY24 questions
-├── scripts/
-│   └── init_db.py              # Database + pgvector setup
-├── tests/
-│   └── test_chunker.py
-├── docker-compose.yaml
-├── requirements.txt
-└── README.md
-```
-
----
-
-## What This Shows
-
-This repo is intentionally small but opinionated:
-
-- **Evaluation matters:** even a tiny 3‑Q test can reveal both:
-  - *Honest refusals* when the answer isn’t in retrieved context.
-  - *Confident hallucinations* with precise but wrong numbers.
-- **Local is enough:** you can explore RAG eval behavior without any external APIs.
-- **Extendable:** swap in more filings, add more questions, or plug in your favorite eval framework on top of the same ingestion + retrieval stack.
-
----
-
-## License
-
-MIT
-```
+- 3-question eval is illustrative, not statistically significant
+- Ground truth extracted manually — possible human error on edge cases
+- llama3 locally is weaker than GPT-4 class models
+- No automated hallucination detection — verdicts are manual
+- Section detection in pdfplumber is heuristic and may miss boundaries in complex filings
